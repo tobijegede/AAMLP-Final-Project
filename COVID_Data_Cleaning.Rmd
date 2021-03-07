@@ -1,0 +1,25 @@
+---
+title: "COVID_Data_Cleaning"
+output: html_document
+---
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+```{r setup, include=FALSE}
+#initialized a new rmd file
+covid.cases <- read.csv("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv", header = TRUE)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
