@@ -9,17 +9,35 @@ library(tidyverse)
 library(lubridate)
 ```
 
-```{r setup, include=FALSE}
+```{r}
 #initialized a new rmd file
 covid.cases <- read.csv("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv", header = TRUE)
+
+
+#initial data pre-processing
+
+#changing date formatting
+covid.cases <- covid.cases %>% 
+  mutate(submission_date = lubridate::mdy(submission_date))
+
+
+#grouping the data by state
+covid.cases <- covid.cases %>% 
+  group_by(submission_date)
+
+      
+
+#count of missing data
+sum(is.na(covid.cases$tot_cases)) #there is no missingness the total number of cases
+
 ```
 
-## Including Plots
+```{r}
+no.cases <- covid.cases %>% 
+  filter(tot_cases == 0)
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+no.cases
+  
 ```
+The range of dates for which there is COVID-19 data is from CDC's website is from `r min(covid.cases$submission_date)` to `r max(covid.cases$submission_date)`. This data could be streaming, if we had a connection to the  API.
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
