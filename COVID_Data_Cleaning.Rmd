@@ -7,37 +7,190 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(lubridate)
+options(scipen = 999)
 ```
 
 ```{r}
 #initialized a new rmd file
 covid.cases <- read.csv("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv", header = TRUE)
 
-
 #initial data pre-processing
 
 #changing date formatting
 covid.cases <- covid.cases %>% 
-  mutate(submission_date = lubridate::mdy(submission_date))
-
-
-#grouping the data by state
-covid.cases <- covid.cases %>% 
-  group_by(submission_date)
-
-      
-
-#count of missing data
-sum(is.na(covid.cases$tot_cases)) #there is no missingness the total number of cases
+  mutate(submission_date = lubridate::mdy(submission_date)) %>% 
+  select(-c("created_at", "consent_cases", "consent_deaths")) #getting rid of unnesscessary columns
 
 ```
 
 ```{r}
-no.cases <- covid.cases %>% 
-  filter(tot_cases == 0)
+#joining the election data with the covid.cases data
 
-no.cases
+#loading in the political leaning data
+political.leaning <- read.csv("1976-2020-president.csv")
+```
+
+```{r}
+#filtering the political leaning data
+election.2020 <- political.leaning %>% 
+  filter(year == 2020) %>%  #keep only election results from 2020
+  select(state_po, party_detailed, candidatevotes, totalvotes) %>%  #keep only state column, and party information and total vote count
+  filter(party_detailed == "DEMOCRAT" | party_detailed == "REPUBLICAN")  %>%  #only keeps in democrats and republicans
+  mutate(per.of.vote =  candidatevotes/totalvotes, 
+         per.of.vote = round(per.of.vote * 100, digits = 2)) %>%  #created percentages of the voting behavior in 2020
+  group_by(state_po) %>% 
+  slice(which.max(per.of.vote)) %>% #which party had the highest percentage of the vote in that particular sta
+  summarize(political.party.affilation = ifelse(party_detailed == "DEMOCRAT", "DEMOCRAT", "REPUBLICAN"),
+            political.party.affilation = as.factor(political.party.affilation))
   
+
+```
+
+
+```{r}
+
+elec_covid_combo <- covid.cases %>%
+  left_join(election.2020, by = c("state" = "state_po"))
+
+
+```
+
+
+
+```{r}
+#read in and join the state census information
+state_census <- read.csv("state_census_edited.csv")
+
+census_covid_combo <- elec_covid_combo %>% 
+  left_join(state_census, by = c("state" = "State"))
+
+```
+
+
+
+```{r}
+#loading and cleaning the covid closure data
+closures_raw <- read.csv("closures.csv")
+closures_df = closures_raw %>% 
+  select(-c(3,14:31)) %>%
+  slice(1:51) %>%
+  rename(abbreviation = State.Abbreviation,
+         c_schools = Closed.K.12.public.schools,
+         c_day_care = Closed.day.cares,
+         c_nursing_home_visits = Banned.visitors.to.nursing.homes,
+         c_non_essential_businesses = Closed.other.non.essential.businesses,
+         c_dine_in_restaurants = Closed.restaurants.except.take.out,
+         c_gyms = Closed.gyms,
+         c_movie_theaters  = Closed.movie.theaters,
+         c_bars = Closed.bars,
+         c_casinos = Closed.casinos,
+         mention_casinos = Mention.of.Tribal.Casinos) %>%
+  mutate_at(c("c_schools", "c_day_care", "c_nursing_home_visits", "c_non_essential_businesses",
+              "c_dine_in_restaurants", "c_gyms", "c_movie_theaters", "c_bars", "c_casinos"),
+            ~ as.Date(., "%m/%d/%Y"))
+
+
+#changed slightly to be a series of 1's and 0's instead of the # of days since the policy was implemented 
+working_df = census_covid_combo %>% #joining combined election and covid data to the policy dataset
+  left_join(closures_df, by = c("state" = "abbreviation")) %>% 
+  #Calculating the number of days since closure
+  mutate(days_schools_closed = as.factor(if_else(submission_date - c_schools  >= 0,
+                                       1, 0)),
+         days_schools_closed =  replace_na(days_schools_closed, 0),
+         days_day_care_closed = as.factor(if_else(submission_date - c_day_care >= 0,
+                                        1, 0)),
+         days_day_care_closed =  replace_na(days_day_care_closed, 0),
+         days_nursing_homes_closed = as.factor(if_else(submission_date -c_nursing_home_visits>= 0,
+                                        1, 0)),
+         days_nursing_homes_closed =  replace_na(days_nursing_homes_closed, 0),
+         days_essBiz_closed = as.factor(if_else(submission_date - c_non_essential_businesses >= 0,
+                                      1, 0)),
+         days_essBiz_closed =  replace_na(days_essBiz_closed, 0),
+         days_restaurants_closed = as.factor(if_else(submission_date - c_dine_in_restaurants >= 0,
+                                           1, 0)),
+         days_restaurants_closed =  replace_na(days_restaurants_closed, 0),
+         days_gyms_closed = as.factor(if_else(submission_date -c_gyms  >= 0,
+                                    1, 0)),
+         days_gyms_closed =  replace_na(days_gyms_closed, 0),
+         days_movies_closed = as.factor(if_else(submission_date -c_movie_theaters >= 0,
+                                    1, 0)),
+         days_movies_closed =  replace_na(days_movies_closed, 0),
+         days_bars_closed = as.factor(if_else(submission_date -c_bars >= 0,
+                                    1, 0)),
+         days_bars_closed =  replace_na(days_bars_closed, 0),
+         days_casinos_closed = as.factor(if_else(submission_date - c_casinos >= 0,   #there is an issue with some of the casino closure calculations
+                                       1, 0)),
+         days_casinos_closed =  replace_na(days_casinos_closed, 0)
+  )# %>% 
+ # select(-c(15:25))
+
+```
+
+
+
+```{r}
+
+#grouping the data by state -- Experimenting with just MD case 
+# covid.md.tx <- working_df %>%
+#   filter(state == "MD" | state == "TX") %>% 
+#   select(-c("State"))
+
+# ggplot(covid.md, aes(x = submission_date, y = tot_cases)) + 
+#   geom_line() +
+#   geom_vline(xintercept = covid.md$c_schools[1], linetype = "dashed", color = "red") +
+#   geom_text(check_overlap = TRUE, aes(x=covid.md$c_schools[1] - 7, label = "School Closures", y = 200000), angle = 90, color = "black") +
+#   geom_vline(xintercept = covid.md$c_non_essential_businesses[1], linetype = "dashed", color = "blue") 
+ # geom_text(check_overlap = TRUE, aes(x=covid.md$c_schools[1] - 7, label = "Non-Essential Business Closure", y = 200000), angle = 90, color = "black") 
+  #xlim("01-01-2020", "05-01-2020")
+
+```
+
+
+
+```{r}
+#examination -- could use time series data to estimate our regression
+#there is a tslm() function in R from the forecast library that we could potentially use that could help to capture this
+#library(forecast)
+
+#getting rid of unnesscary columns
+sub.working.df<- working_df %>% 
+  select(-c(2, 4:5, 7, 9:10, 12,14:33))
+
+sub.working.df$log.cases <- ifelse(sub.working.df$tot_cases > 0, log(sub.working.df$tot_cases), 0)
+
+sample.fit <- lm(log.cases ~ . - tot_cases - new_case - tot_death - new_death , data = sub.working.df)
+
+
+#would need to create a ts object and then run a regression on that object
+
+#calculating the mse
+mean((sub.working.df$log.cases - sample.fit$fitted.values)^2)
+
+
+#best subset selection methods?
+
+#multicollinear checks?
+
+
+#if we are doing prediction, what would our training & testing dataset be
+```
+
+
+
+
+
+```{r}
+#count of missing data
+#sum(is.na(covid.cases$tot_cases)) #there is no missingness the total number of cases
+
+```
+
+```{r}
+# no.cases <- covid.cases %>% 
+#   filter(tot_cases == 0)
+# 
+# no.cases
+# min(covid.cases$submission_date)
 ```
 The range of dates for which there is COVID-19 data is from CDC's website is from `r min(covid.cases$submission_date)` to `r max(covid.cases$submission_date)`. This data could be streaming, if we had a connection to the  API.
 
