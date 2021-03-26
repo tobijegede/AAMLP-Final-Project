@@ -11,12 +11,11 @@ options(scipen = 999)
 ```
 
 ```{r}
-#initialized a new rmd file
+#load in the covid cases data
 covid.cases <- read.csv("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv", header = TRUE)
 
-#initial data pre-processing
 
-#changing date formatting
+#change date formatting
 covid.cases <- covid.cases %>% 
   mutate(submission_date = lubridate::mdy(submission_date)) %>% 
   select(-c("created_at", "consent_cases", "consent_deaths")) #getting rid of unnesscessary columns
@@ -24,9 +23,7 @@ covid.cases <- covid.cases %>%
 ```
 
 ```{r}
-#joining the election data with the covid.cases data
-
-#loading in the political leaning data
+#load in the election data 
 political.leaning <- read.csv("1976-2020-president.csv")
 ```
 
